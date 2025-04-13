@@ -80,9 +80,9 @@ export const useChatStore = create((set, get) => ({
       return;
     }
 
-    // const existingReaction = message.reactions.find(
-    //   (reaction) => reaction.userId.toString() === authUser._id && reaction.emoji === emoji
-    // );
+    const existingReaction = message.reactions.find(
+      (reaction) => reaction.userId.toString() === authUser._id && reaction.emoji === emoji
+    );
 
     //  if (existingReaction) {
     //   toast.error("You have already reacted with this emoji");

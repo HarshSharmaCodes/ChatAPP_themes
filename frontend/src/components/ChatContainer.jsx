@@ -23,8 +23,27 @@ const ChatContainer = () => {
 
   const { authUser } = useAuthStore();
   const messageEndRef = useRef(null);
+  const popoverRef = useRef(null);
   const [showEmojiPopoverFor, setShowEmojiPopoverFor] = useState(null);
   const [popoverPosition, setPopoverPosition] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (popoverRef.current && !popoverRef.current.contains(event.target)) {
+        setShowEmojiPopoverFor(null);
+      }
+    };
+
+    if (showEmojiPopoverFor) {
+      document.addEventListener("mousedown", handleClickOutside);
+    } else {
+      document.removeEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showEmojiPopoverFor]);
 
   useEffect(() => {
     getMessages(selectedUser._id);
@@ -50,10 +69,20 @@ const ChatContainer = () => {
 
   const handleLongPress = (event, messageId) => {
     event.preventDefault();
-    const x = event.clientX || event.touches?.[0]?.clientX || 100;
-    const y = event.clientY || event.touches?.[0]?.clientY || 100;
-    setPopoverPosition({ x, y });
-    setShowEmojiPopoverFor(messageId);
+
+    const messageEl = document.getElementById(`message-${messageId}`);
+    const chatContainer = document.querySelector(".chat-scroll-container");
+
+    if (messageEl && chatContainer) {
+      const messageRect = messageEl.getBoundingClientRect();
+      const containerRect = chatContainer.getBoundingClientRect();
+
+      const x = messageRect.left - containerRect.left + messageRect.width / 2;
+      const y = messageRect.top;
+
+      setPopoverPosition({ x, y });
+      setShowEmojiPopoverFor(messageId);
+    }
   };
 
   if (isMessagesLoading) {
@@ -70,10 +99,11 @@ const ChatContainer = () => {
     <div className="flex-1 flex flex-col overflow-auto relative">
       <ChatHeader />
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 relative chat-scroll-container">
         {messages.map((message) => (
           <div
             key={message._id}
+            id={`message-${message._id}`}
             className={`chat ${
               message.senderId === authUser._id ? "chat-end" : "chat-start"
             }`}
@@ -143,11 +173,16 @@ const ChatContainer = () => {
           </div>
         ))}
       </div>
-      
+
       {showEmojiPopoverFor && (
         <div
-          className="absolute z-50 bg-white p-2 rounded-xl shadow-lg flex space-x-2"
-          style={{ top: popoverPosition.y, left: popoverPosition.x }}
+          ref={popoverRef}
+          className="absolute z-50 bg-white p-1 rounded-xl shadow-lg flex space-x-2"
+          style={{
+            top: popoverPosition.y,
+            left: popoverPosition.x,
+            transform: "translateX(-50%)",
+          }}
         >
           {emojiOptions.map((emoji) => (
             <button
@@ -160,7 +195,7 @@ const ChatContainer = () => {
           ))}
         </div>
       )}
-
+      
       <MessageInput />
     </div>
   );
