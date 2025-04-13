@@ -1,5 +1,5 @@
-import User from "../models/user.model.js";
 import Message from "../models/message.model.js";
+import User from "../models/user.model.js";
 
 import cloudinary from "../lib/cloudinary.js";
 import { getReceiverSocketId, io } from "../lib/socket.js";
@@ -65,6 +65,53 @@ export const sendMessage = async (req, res) => {
     res.status(201).json(newMessage);
   } catch (error) {
     console.log("Error in sendMessage controller: ", error.message);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// Add reaction to message
+export const addReaction = async (req, res) => {
+  try {
+    const { messageId } = req.params; // The message being reacted to
+    const { emoji } = req.body; // The emoji being used in the reaction
+    const userId = req.user._id; // Get the logged-in user (who is reacting)
+
+    // Find the message to which the reaction is being added
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ error: "Message not found" });
+    }
+
+    // Check if the user has already reacted with the same emoji
+    const existingReaction = message.reactions.find(
+      (reaction) => reaction.userId.toString() === userId && reaction.emoji === emoji
+    );
+
+    if (existingReaction) {
+      return res.status(400).json({ message: "You have already reacted with this emoji" });
+    }
+
+    // If the user has previously reacted with a different emoji, remove the old reaction
+    message.reactions = message.reactions.filter(
+      (reaction) => reaction.userId.toString() !== userId
+    );
+
+    // Add the new reaction to the message
+    message.reactions.push({ emoji, userId });
+
+    // Save the updated message
+    await message.save();
+
+    // Emit updated message with reaction to all connected users
+    const receiverSocketId = getReceiverSocketId(message.receiverId);
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("messageReactionUpdated", { messageId, emoji, userId });
+    }
+
+    // Respond with the updated message data
+    res.status(200).json(message);
+  } catch (error) {
+    console.error("Error in addReaction controller: ", error.message);
     res.status(500).json({ error: "Internal server error" });
   }
 };
