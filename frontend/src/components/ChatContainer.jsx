@@ -21,7 +21,7 @@ const ChatContainer = () => {
     sendReaction,
   } = useChatStore();
 
-  const { authUser,socket } = useAuthStore();
+  const { authUser, socket } = useAuthStore();
   const messageEndRef = useRef(null);
   const popoverRef = useRef(null);
   const [showEmojiPopoverFor, setShowEmojiPopoverFor] = useState(null);
@@ -166,12 +166,16 @@ const ChatContainer = () => {
 
             <div className="chat-bubble flex flex-col">
               {message.image && (
-                <img
-                  src={message.image}
-                  alt="Attachment"
-                  className="sm:max-w-[200px] rounded-md mb-2"
-                />
+                <div className="relative mb-2">
+                  <img
+                    src={message.image}
+                    alt="Attachment"
+                    className="sm:max-w-[200px] rounded-md cursor-pointer"
+                    onClick={() => window.open(message.image, "_blank")}
+                  />
+                </div>
               )}
+
               {message.text && <p>{message.text}</p>}
               {message.reactions &&
                 message.reactions.length > 0 &&
@@ -193,8 +197,6 @@ const ChatContainer = () => {
                     </div>
                   );
                 })()}
-
-              {/* 🔽 INSERT THIS HERE */}
               {message.senderId === authUser._id && (
                 <div className="text-[10px] text-gray-500 mt-1 flex items-center justify-end">
                   {message.status === "sent" && <span>✓</span>}
