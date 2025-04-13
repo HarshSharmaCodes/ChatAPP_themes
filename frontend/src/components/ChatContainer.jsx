@@ -41,13 +41,13 @@ const ChatContainer = () => {
   const handleReaction = async (messageId, emoji) => {
     try {
       await sendReaction(messageId, emoji);
-      toast.success("Reaction added!");
-      setShowEmojiPopoverFor(null);
+      toast.success("Reaction updated!");
+      setShowEmojiPopoverFor(null); 
     } catch (error) {
-      toast.error("Failed to add reaction");
-      // toast.error(error.response?.data?.message || "Something went wrong");
+      toast.error("Failed to update reaction");
     }
   };
+  
 
   const handleLongPress = (event, messageId) => {
     event.preventDefault();

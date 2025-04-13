@@ -31,23 +31,30 @@ io.on("connection", (socket) => {
   // Listen for the "reactToMessage" event, triggered when a user reacts to a message
   socket.on("reactToMessage", async ({ messageId, emoji, userId }) => {
     console.log(`User ${userId} reacted to message ${messageId} with ${emoji}`);
-
-    // Get the receiver's socket ID (assuming the message has a receiverId)
-    const message = await Message.findById(messageId);  // You might need to import the Message model if not imported already
-    const receiverSocketId = getReceiverSocketId(message.receiverId);
-
-    if (receiverSocketId) {
-      // Emit the reaction update to the receiver
-      io.to(receiverSocketId).emit("messageReactionUpdated", { messageId, emoji, userId });
+  
+    const message = await Message.findById(messageId);
+  
+    if (!message) return;
+  
+    const receiverId = message.receiverId?.toString();
+    const senderId = message.senderId?.toString();
+  
+    const receiverSocketId = getReceiverSocketId(receiverId);
+    const senderSocketId = getReceiverSocketId(senderId);
+  
+    const payload = { messageId, emoji, userId };
+  
+    // Emit to sender if online
+    if (senderSocketId) {
+      io.to(senderSocketId).emit("messageReactionUpdated", payload);
     }
-
-    // Optionally, you can also notify the sender
-    const senderSocketId = getReceiverSocketId(message.senderId);
-    if (senderSocketId && senderSocketId !== receiverSocketId) {
-      // Emit reaction update to the sender as well
-      io.to(senderSocketId).emit("messageReactionUpdated", { messageId, emoji, userId });
+  
+    // Emit to receiver if online (but avoid emitting twice to same socket)
+    if (receiverSocketId && receiverSocketId !== senderSocketId) {
+      io.to(receiverSocketId).emit("messageReactionUpdated", payload);
     }
   });
+  
 
   // Handle disconnection
   socket.on("disconnect", () => {

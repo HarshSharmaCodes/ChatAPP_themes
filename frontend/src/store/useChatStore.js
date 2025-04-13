@@ -3,6 +3,25 @@ import { create } from "zustand";
 import { axiosInstance } from "../lib/axios";
 import { useAuthStore } from "./useAuthStore";
 
+function updateReactions(reactions, emoji, userId) {
+  const userReacted = reactions.find(r => r.userId === userId);
+
+  if (userReacted) {
+    if (userReacted.emoji === emoji) {
+      // Remove reaction
+      return reactions.filter(r => !(r.userId === userId && r.emoji === emoji));
+    } else {
+      // Change reaction
+      return reactions.map(r =>
+        r.userId === userId ? { ...r, emoji } : r
+      );
+    }
+  } else {
+    // New reaction
+    return [...reactions, { emoji, userId }];
+  }
+}
+
 export const useChatStore = create((set, get) => ({
   messages: [],
   users: [],
@@ -55,33 +74,41 @@ export const useChatStore = create((set, get) => ({
     }
 
     // Check if the user has already reacted with this emoji
+    const authUser = useAuthStore.getState().authUser;
+    if (!authUser) {
+      toast.error("User not found");
+      return;
+    }
+
     const existingReaction = message.reactions.find(
-      (reaction) => reaction.userId.toString() === useAuthStore.getState().user._id && reaction.emoji === emoji
+      (reaction) => reaction.userId.toString() === authUser._id && reaction.emoji === emoji
     );
 
-    if (existingReaction) {
+     if (existingReaction) {
       toast.error("You have already reacted with this emoji");
       return;
     }
 
     try {
       const res = await axiosInstance.post(`/messages/react/${messageId}`, { emoji });
+      // Emit socket event so that sender & receiver both get real-time updates
+      // const socket = useAuthStore.getState().socket;
+      // socket.emit("reactToMessage", {
+      //   messageId,
+      //   emoji,
+      //   userId: authUser._id,
+      //   // userId: useAuthStore.getState().user._id,
+      // });
 
-      // Optionally update local message state with new reactions
       const updatedMessages = get().messages.map((msg) =>
         msg._id === messageId ? { ...msg, reactions: res.data.reactions } : msg
       );
-
       set({ messages: updatedMessages });
-
-      // Optionally, emit socket events if needed
-      // socket.emit("reactionAdded", { messageId, emoji });
-
     } catch (error) {
-      toast.error(error?.response?.data?.message || "Failed to send reaction");
+      console.error("Send reaction error:", error.response?.data || error.message);
+      toast.error(error?.response?.data?.error || error.message || "Failed to send reaction");
     }
   },
-
 
   subscribeToMessages: () => {
     const { selectedUser } = get();
@@ -97,11 +124,26 @@ export const useChatStore = create((set, get) => ({
         messages: [...get().messages, newMessage],
       });
     });
+
+    // ✅ Listen for reaction updates
+    socket.on("messageReactionUpdated", ({ messageId, emoji, userId }) => {
+      const updatedMessages = get().messages.map((msg) =>
+        msg._id === messageId
+          ? {
+            ...msg,
+            reactions: updateReactions(msg.reactions, emoji, userId),
+          }
+          : msg
+      );
+
+      set({ messages: updatedMessages });
+    });
   },
 
   unsubscribeFromMessages: () => {
     const socket = useAuthStore.getState().socket;
     socket.off("newMessage");
+    socket.off("messageReactionUpdated");
   },
 
   setSelectedUser: (selectedUser) => set({ selectedUser }),

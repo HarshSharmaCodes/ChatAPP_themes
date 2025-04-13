@@ -72,46 +72,56 @@ export const sendMessage = async (req, res) => {
 // Add reaction to message
 export const addReaction = async (req, res) => {
   try {
-    const { messageId } = req.params; // The message being reacted to
-    const { emoji } = req.body; // The emoji being used in the reaction
-    const userId = req.user._id; // Get the logged-in user (who is reacting)
+    const { messageId } = req.params;
+    const { emoji } = req.body;
+    const userId = req.user._id;
 
-    // Find the message to which the reaction is being added
     const message = await Message.findById(messageId);
     if (!message) {
       return res.status(404).json({ error: "Message not found" });
     }
 
-    // Check if the user has already reacted with the same emoji
     const existingReaction = message.reactions.find(
-      (reaction) => reaction.userId.toString() === userId && reaction.emoji === emoji
+      (reaction) => reaction.userId.toString() === userId
     );
 
     if (existingReaction) {
-      return res.status(400).json({ message: "You have already reacted with this emoji" });
+      if (existingReaction.emoji === emoji) {
+        console.log("Removing existing reaction");
+        // User tapped same emoji again → remove reaction
+        message.reactions = message.reactions.filter(
+          (reaction) => !(reaction.userId.toString() === userId && reaction.emoji === emoji)
+        );
+      } else {
+        console.log("Updating reaction to different emoji");
+        // User tapped different emoji → update emoji
+        message.reactions = message.reactions.map((reaction) =>
+          reaction.userId.toString() === userId
+            ? { ...reaction, emoji }
+            : reaction
+        );
+      }
+    } else {
+      // No previous reaction → add new
+      message.reactions.push({ emoji, userId });
     }
 
-    // If the user has previously reacted with a different emoji, remove the old reaction
-    message.reactions = message.reactions.filter(
-      (reaction) => reaction.userId.toString() !== userId
-    );
-
-    // Add the new reaction to the message
-    message.reactions.push({ emoji, userId });
-
-    // Save the updated message
     await message.save();
+    const receiverSocketId = getReceiverSocketId(message.receiverId.toString());
+    const senderSocketId = getReceiverSocketId(message.senderId.toString());
 
-    // Emit updated message with reaction to all connected users
-    const receiverSocketId = getReceiverSocketId(message.receiverId);
+    const payload = { messageId, emoji, userId };
+
+    // Emit to both users
     if (receiverSocketId) {
-      io.to(receiverSocketId).emit("messageReactionUpdated", { messageId, emoji, userId });
+      io.to(receiverSocketId).emit("messageReactionUpdated", payload);
+    }
+    if (senderSocketId && senderSocketId !== receiverSocketId) {
+      io.to(senderSocketId).emit("messageReactionUpdated", payload);
     }
 
-    // Respond with the updated message data
     res.status(200).json(message);
   } catch (error) {
-    console.error("Error in addReaction controller: ", error.message);
     res.status(500).json({ error: "Internal server error" });
   }
 };
