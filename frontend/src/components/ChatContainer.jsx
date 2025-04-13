@@ -42,12 +42,11 @@ const ChatContainer = () => {
     try {
       await sendReaction(messageId, emoji);
       toast.success("Reaction updated!");
-      setShowEmojiPopoverFor(null); 
+      setShowEmojiPopoverFor(null);
     } catch (error) {
       toast.error("Failed to update reaction");
     }
   };
-  
 
   const handleLongPress = (event, messageId) => {
     event.preventDefault();
@@ -120,21 +119,31 @@ const ChatContainer = () => {
                 />
               )}
               {message.text && <p>{message.text}</p>}
+              {message.reactions &&
+                message.reactions.length > 0 &&
+                (() => {
+                  const uniqueReactions = Object.values(
+                    message.reactions.reduce((acc, curr) => {
+                      acc[curr.userId] = curr; // One reaction per user
+                      return acc;
+                    }, {})
+                  );
 
-              {message.reactions && message.reactions.length > 0 && (
-                <div className="flex space-x-1 mt-2">
-                  {message.reactions.map((reaction, index) => (
-                    <span key={index} className="text-sm">
-                      {reaction.emoji}
-                    </span>
-                  ))}
-                </div>
-              )}
+                  return (
+                    <div className="flex space-x-1 mt-2">
+                      {uniqueReactions.map((reaction) => (
+                        <span key={reaction.userId} className="text-sm">
+                          {reaction.emoji}
+                        </span>
+                      ))}
+                    </div>
+                  );
+                })()}
             </div>
           </div>
         ))}
       </div>
-
+      
       {showEmojiPopoverFor && (
         <div
           className="absolute z-50 bg-white p-2 rounded-xl shadow-lg flex space-x-2"

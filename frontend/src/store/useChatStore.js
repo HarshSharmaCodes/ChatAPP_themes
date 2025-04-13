@@ -80,25 +80,17 @@ export const useChatStore = create((set, get) => ({
       return;
     }
 
-    const existingReaction = message.reactions.find(
-      (reaction) => reaction.userId.toString() === authUser._id && reaction.emoji === emoji
-    );
+    // const existingReaction = message.reactions.find(
+    //   (reaction) => reaction.userId.toString() === authUser._id && reaction.emoji === emoji
+    // );
 
-     if (existingReaction) {
-      toast.error("You have already reacted with this emoji");
-      return;
-    }
+    //  if (existingReaction) {
+    //   toast.error("You have already reacted with this emoji");
+    //   return;
+    // }
 
     try {
       const res = await axiosInstance.post(`/messages/react/${messageId}`, { emoji });
-      // Emit socket event so that sender & receiver both get real-time updates
-      // const socket = useAuthStore.getState().socket;
-      // socket.emit("reactToMessage", {
-      //   messageId,
-      //   emoji,
-      //   userId: authUser._id,
-      //   // userId: useAuthStore.getState().user._id,
-      // });
 
       const updatedMessages = get().messages.map((msg) =>
         msg._id === messageId ? { ...msg, reactions: res.data.reactions } : msg
