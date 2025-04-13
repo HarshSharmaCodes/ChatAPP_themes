@@ -21,7 +21,7 @@ const ChatContainer = () => {
     sendReaction,
   } = useChatStore();
 
-  const { authUser } = useAuthStore();
+  const { authUser,socket } = useAuthStore();
   const messageEndRef = useRef(null);
   const popoverRef = useRef(null);
   const [showEmojiPopoverFor, setShowEmojiPopoverFor] = useState(null);
@@ -56,6 +56,30 @@ const ChatContainer = () => {
       messageEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages]);
+
+  useEffect(() => {
+    if (!socket || !authUser || !selectedUser || messages.length === 0) return;
+
+    const undelivered = messages.filter(
+      (msg) => msg.receiverId === authUser._id && msg.status === "sent"
+    );
+
+    const unread = messages.filter(
+      (msg) => msg.receiverId === authUser._id && msg.status !== "read"
+    );
+
+    if (undelivered.length > 0) {
+      socket.emit("messageDelivered", {
+        messageIds: undelivered.map((msg) => msg._id),
+      });
+    }
+
+    if (unread.length > 0) {
+      socket.emit("messageRead", {
+        messageIds: unread.map((msg) => msg._id),
+      });
+    }
+  }, [messages, selectedUser, socket, authUser]);
 
   const handleReaction = async (messageId, emoji) => {
     try {
@@ -169,6 +193,17 @@ const ChatContainer = () => {
                     </div>
                   );
                 })()}
+
+              {/* 🔽 INSERT THIS HERE */}
+              {message.senderId === authUser._id && (
+                <div className="text-[10px] text-gray-500 mt-1 flex items-center justify-end">
+                  {message.status === "sent" && <span>✓</span>}
+                  {message.status === "delivered" && <span>✓✓</span>}
+                  {message.status === "read" && (
+                    <span className="text-blue-500">✓✓</span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -195,7 +230,7 @@ const ChatContainer = () => {
           ))}
         </div>
       )}
-      
+
       <MessageInput />
     </div>
   );

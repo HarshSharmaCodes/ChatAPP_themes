@@ -17,11 +17,9 @@ export function getReceiverSocketId(userId) {
 }
 
 // used to store online users
-const userSocketMap = {}; // {userId: socketId}
+const userSocketMap = {};
 
 io.on("connection", (socket) => {
-  console.log("A user connected", socket.id);
-
   const userId = socket.handshake.query.userId;
   if (userId) userSocketMap[userId] = socket.id;
 
@@ -30,31 +28,69 @@ io.on("connection", (socket) => {
 
   // Listen for the "reactToMessage" event, triggered when a user reacts to a message
   socket.on("reactToMessage", async ({ messageId, emoji, userId }) => {
-    console.log(`User ${userId} reacted to message ${messageId} with ${emoji}`);
-  
     const message = await Message.findById(messageId);
-  
     if (!message) return;
-  
+
     const receiverId = message.receiverId?.toString();
     const senderId = message.senderId?.toString();
-  
+
     const receiverSocketId = getReceiverSocketId(receiverId);
     const senderSocketId = getReceiverSocketId(senderId);
-  
+
     const payload = { messageId, emoji, userId };
-  
+
     // Emit to sender if online
     if (senderSocketId) {
       io.to(senderSocketId).emit("messageReactionUpdated", payload);
     }
-  
+
     // Emit to receiver if online (but avoid emitting twice to same socket)
     if (receiverSocketId && receiverSocketId !== senderSocketId) {
       io.to(receiverSocketId).emit("messageReactionUpdated", payload);
     }
   });
-  
+
+  // 🔥 Message Delivered Event
+  socket.on("messageDelivered", async ({ messageIds }) => {
+    // Ensure message status is updated in DB before emitting
+    for (const messageId of messageIds) {
+      const message = await Message.findById(messageId);
+      if (message && message.status === "sent") {
+        message.status = "delivered";
+        await message.save();
+
+        const senderSocketId = getReceiverSocketId(message.senderId.toString());
+        if (senderSocketId) {
+          io.to(senderSocketId).emit("messageStatusUpdated", {
+            messageId,
+            status: "delivered",
+          });
+        }
+      }
+    }
+  });
+
+
+  // 🔥 Message Read Event
+  socket.on("messageRead", async ({ messageIds }) => {
+    if (!Array.isArray(messageIds)) return;
+
+    for (const messageId of messageIds) {
+      const message = await Message.findById(messageId);
+      if (message && message.status !== "read") {
+        message.status = "read";
+        await message.save();
+
+        const senderSocketId = getReceiverSocketId(message.senderId.toString());
+        if (senderSocketId) {
+          io.to(senderSocketId).emit("messageStatusUpdated", {
+            messageId,
+            status: "read",
+          });
+        }
+      }
+    }
+  });
 
   // Handle disconnection
   socket.on("disconnect", () => {

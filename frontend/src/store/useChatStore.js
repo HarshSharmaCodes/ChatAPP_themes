@@ -84,11 +84,6 @@ export const useChatStore = create((set, get) => ({
       (reaction) => reaction.userId.toString() === authUser._id && reaction.emoji === emoji
     );
 
-    //  if (existingReaction) {
-    //   toast.error("You have already reacted with this emoji");
-    //   return;
-    // }
-
     try {
       const res = await axiosInstance.post(`/messages/react/${messageId}`, { emoji });
 
@@ -117,6 +112,15 @@ export const useChatStore = create((set, get) => ({
       });
     });
 
+    socket.on("messageStatusUpdated", ({ messageId, status }) => {
+      set((state) => ({
+        messages: state.messages.map((msg) =>
+          msg._id === messageId ? { ...msg, status } : msg
+        ),
+      }
+    ));
+    });    
+
     // ✅ Listen for reaction updates
     socket.on("messageReactionUpdated", ({ messageId, emoji, userId }) => {
       const updatedMessages = get().messages.map((msg) =>
@@ -136,6 +140,7 @@ export const useChatStore = create((set, get) => ({
     const socket = useAuthStore.getState().socket;
     socket.off("newMessage");
     socket.off("messageReactionUpdated");
+    socket.off("messageStatusUpdated");
   },
 
   setSelectedUser: (selectedUser) => set({ selectedUser }),

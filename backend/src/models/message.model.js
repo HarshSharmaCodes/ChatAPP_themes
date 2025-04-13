@@ -18,9 +18,14 @@ const messageSchema = new mongoose.Schema(
     image: {
       type: String,
     },
+    status: {
+      type: String,
+      enum: ['sent', 'delivered', 'read'],
+      default: 'sent'
+    },    
     reactions: [
       {
-        emoji: { type: String }, // e.g., "❤️", "😂", etc.
+        emoji: { type: String },
         userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
       }
     ]
