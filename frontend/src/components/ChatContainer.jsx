@@ -82,8 +82,13 @@ const ChatContainer = () => {
   }, [messages, selectedUser, socket, authUser]);
 
   const handleReaction = async (messageId, emoji) => {
+    const message = messages.find((msg) => msg._id === messageId);
+    const existingReaction = message.reactions?.find(
+      (reaction) => reaction.userId === authUser._id
+    );
+    const isSameEmoji = existingReaction?.emoji === emoji;
     try {
-      await sendReaction(messageId, emoji);
+      await sendReaction(messageId, isSameEmoji ? null : emoji);
       toast.success("Reaction updated!");
       setShowEmojiPopoverFor(null);
     } catch (error) {
