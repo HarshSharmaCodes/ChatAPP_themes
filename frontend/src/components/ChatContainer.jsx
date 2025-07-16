@@ -3,7 +3,6 @@ import toast from "react-hot-toast";
 import { formatMessageTime } from "../lib/utils";
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
-
 import ChatHeader from "./ChatHeader";
 import MessageInput from "./MessageInput";
 import MessageSkeleton from "./skeletons/MessageSkeleton";
@@ -24,8 +23,12 @@ const ChatContainer = () => {
   const { authUser, socket } = useAuthStore();
   const messageEndRef = useRef(null);
   const popoverRef = useRef(null);
+  const prevMessageIdsRef = useRef([]);
   const [showEmojiPopoverFor, setShowEmojiPopoverFor] = useState(null);
   const [popoverPosition, setPopoverPosition] = useState({ x: 0, y: 0 });
+
+  // Create a new Audio object for the notification sound
+  const notificationSound = new Audio("/sounds/notification.mp3");
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -60,13 +63,18 @@ const ChatContainer = () => {
   useEffect(() => {
     if (!socket || !authUser || !selectedUser || messages.length === 0) return;
 
-    const undelivered = messages.filter(
-      (msg) => msg.receiverId === authUser._id && msg.status === "sent"
+    const prevMessageIds = prevMessageIdsRef.current;
+    const currentMessageIds = messages.map((msg) => msg._id);
+
+    const newMessages = messages.filter(
+      (msg) =>
+        !prevMessageIds.includes(msg._id) &&
+        msg.receiverId === authUser._id &&
+        msg.senderId === selectedUser._id
     );
 
-    const unread = messages.filter(
-      (msg) => msg.receiverId === authUser._id && msg.status !== "read"
-    );
+    const undelivered = newMessages.filter((msg) => msg.status === "sent");
+    const unread = newMessages.filter((msg) => msg.status !== "read");
 
     if (undelivered.length > 0) {
       socket.emit("messageDelivered", {
@@ -78,7 +86,13 @@ const ChatContainer = () => {
       socket.emit("messageRead", {
         messageIds: unread.map((msg) => msg._id),
       });
+
+      // ✅ Play sound ONLY for new messages, not reactions
+      notificationSound.play();
     }
+
+    // Update the ref with current message IDs
+    prevMessageIdsRef.current = currentMessageIds;
   }, [messages, selectedUser, socket, authUser]);
 
   const handleReaction = async (messageId, emoji) => {
